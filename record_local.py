@@ -1,9 +1,11 @@
 import cv2
 import sys
 import time
-from optitrack_utils import DataDescriptions
-from optitrack_utils import MoCapData
 from optitrack_utils.NatNetClient import NatNetClient
+
+cam = cv2.VideoCapture(1) #Camera
+pos = () #position of 1 rigid body
+ort = () #orientation of 1 rigid body
 
 # This is a callback function that gets connected to the NatNet client
 # and called once per mocap frame.
@@ -22,6 +24,8 @@ def receive_new_frame(data_dict):
 
 # This is a callback function that gets connected to the NatNet client. It is called once per rigid body per frame
 def receive_rigid_body_frame( new_id, position, rotation ):
+    pos = position
+    ort = rotation
     print( "Received frame for rigid body", new_id," ",position," ",rotation )
 
 def print_configuration(natnet_client):
@@ -59,10 +63,10 @@ def my_parse_args(arg_list, args_dict):
 # Recording Process; run script on terminal 
 if __name__ == "__main__":
 
-    # cam = cv2.VideoCapture(0)
-    # if not cam.isOpened():
-    #     print("ERROR: Could not open webcam. Exiting")
-    #     sys.exit(1)
+    cam = cv2.VideoCapture(0)
+    if not cam.isOpened():
+        print("ERROR: Could not open webcam. Exiting")
+        sys.exit(1)
     #CHANGE CLIENT ADDRESS TO OPTITRACK COMPUTER
     optionsDict = {}
     optionsDict["clientAddress"] = "127.0.0.1"
@@ -112,15 +116,26 @@ if __name__ == "__main__":
                 request_data_descriptions(streaming_client)
                 time.sleep(1)
             elif c1 == 'e':
-                sz_command="TimelineStop"
-                return_code = streaming_client.send_command(sz_command)
-                time.sleep(1)
-                print("Command: %s - return_code: %d"% (sz_command, return_code) )
+                tmpCommands=["TimelinePtop",
+                            "SetPlaybackStartFrame,0",
+                            "SetPlaybackStopFrame,1000000",
+                            "SetPlaybackLooping,0",
+                            "SetPlaybackCurrentFrame,0"]
+                for sz_command in tmpCommands:
+                    return_code = streaming_client.send_command(sz_command)
+                    print("Command: %s - return_code: %d"% (sz_command, return_code) )
             elif c1 == 'b':
-                sz_command="TimelinePlay"
-                return_code = streaming_client.send_command(sz_command)
-                print("Command: %s - return_code: %d"% (sz_command, return_code) )
-
+                mpCommands=["TimelinePlay",
+                            "TimelineStop",
+                            "SetPlaybackStartFrame,0",
+                            "SetPlaybackStopFrame,1000000",
+                            "SetPlaybackLooping,0",
+                            "SetPlaybackCurrentFrame,0",
+                            "TimelineStop",
+                            "TimelinePlay"]
+                for sz_command in tmpCommands:
+                    return_code = streaming_client.send_command(sz_command)
+                    print("Command: %s - return_code: %d"% (sz_command, return_code) )
             elif c1 == 'j':
                 if streaming_client.get_print_level == 1:
                     streaming_client.set_print_level(0)
@@ -128,6 +143,9 @@ if __name__ == "__main__":
                     streaming_client.set_print_level(1)
                 print("Changed verbosity")
             elif c1 == 'q':
+                sz_command="TimelineStop"
+                return_code = streaming_client.send_command(sz_command)
+                time.sleep(1)
                 is_looping = False
                 streaming_client.shutdown()
                 break
