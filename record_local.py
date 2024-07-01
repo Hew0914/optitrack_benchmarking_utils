@@ -1,32 +1,32 @@
 import cv2
 import sys
 import time
-from optitrack_utils.NatNetClient import NatNetClient
+from NatNetClient import NatNetClient
+import csv
 
-cam = cv2.VideoCapture(1) #Camera
-pos = () #position of 1 rigid body
-ort = () #orientation of 1 rigid body
+cam = cv2.VideoCapture(0)
+recording = False
 
 # This is a callback function that gets connected to the NatNet client
 # and called once per mocap frame.
 def receive_new_frame(data_dict):
     order_list=[ "frameNumber", "markerSetCount", "unlabeledMarkersCount", "rigidBodyCount", "skeletonCount",
                 "labeledMarkerCount", "timecode", "timecodeSub", "timestamp", "isRecording", "trackedModelsChanged" ]
-    dump_args = False
-    if dump_args == True:
-        out_string = "    "
-        for key in data_dict:
-            out_string += key + "="
-            if key in data_dict :
-                out_string += data_dict[key] + " "
-            out_string+="/"
-        print(out_string)
+    if data_dict["frame_number"] % 8 == 4:
+        success, image = cam.read()
+        if success:
+            cv2.imwrite("frames/frame_%d.png" % data_dict["frame_number"], image)
+        else:
+            print("Failed to grab frame")
 
 # This is a callback function that gets connected to the NatNet client. It is called once per rigid body per frame
 def receive_rigid_body_frame( new_id, position, rotation ):
-    pos = position
-    ort = rotation
-    print( "Received frame for rigid body", new_id," ",position," ",rotation )
+    if recording:
+        out = position + rotation
+        with open("optitrack_data.csv", 'a') as f:
+            f_writer = csv.writer(f)
+            f_writer.writerow(out)
+            f.close()
 
 def print_configuration(natnet_client):
     natnet_client.refresh_configuration()
@@ -42,8 +42,12 @@ def initial_message():
     msg += "End Recording: e\n"
     msg += "Change verbosity: j\n"
     msg += "Stop client: q\n"
-    msg += "\nVideo saved automatically to script directory on recording end.\n"
+    msg += "\nData saved automatically to script directory on recording end.\n"
     print(msg)
+
+def request_data_descriptions(s_client):
+    # Request the model definitions
+    s_client.send_request(s_client.command_socket, s_client.NAT_REQUEST_MODELDEF,    "",  (s_client.server_ip_address, s_client.command_port) )
 
 def my_parse_args(arg_list, args_dict):
     # set up base values
@@ -60,17 +64,23 @@ def my_parse_args(arg_list, args_dict):
 
     return args_dict
 
+def file_setup():
+    with open("optitrack_data.csv", 'w') as f:
+        f_writer = csv.writer(f)
+        f_writer.writerow(["Pos X", "Pos Y", "Pos Z", "Rot X", "Rot Y", "Rot Z", "Rot W"])
+        f.close()
+
 # Recording Process; run script on terminal 
 if __name__ == "__main__":
 
-    cam = cv2.VideoCapture(0)
-    if not cam.isOpened():
-        print("ERROR: Could not open webcam. Exiting")
-        sys.exit(1)
+    # cam = cv2.VideoCapture(0)
+    # if not cam.isOpened():
+    #     print("ERROR: Could not open webcam. Exiting")
+    #     sys.exit(1)
     #CHANGE CLIENT ADDRESS TO OPTITRACK COMPUTER
     optionsDict = {}
     optionsDict["clientAddress"] = "127.0.0.1"
-    optionsDict["serverAddress"] = "192.168.2.109:1001"
+    optionsDict["serverAddress"] = "127.0.0.1"
     optionsDict["use_multicast"] = True
 
     # This will create a new NatNet client
@@ -96,43 +106,31 @@ if __name__ == "__main__":
     time.sleep(1)
     if streaming_client.connected() is False:
         print("ERROR: Could not connect properly.  Check that Motive streaming is on.")
-        try:
-            sys.exit(2)
-        except SystemExit:
-            print("...")
-        finally:
-            print("exiting")
-
+        sys.exit(1)
     print_configuration(streaming_client)
     print("\n")
     initial_message()
-
-
+    sz_command = "SetPlaybackStartFrame=0"
+    return_code = streaming_client.send_command(sz_command)
+    print("Command: %s - return_code: %d"% (sz_command, return_code) )
     while is_looping:
         inchars = input('Enter command or (\'h\' for list of commands)\n')
+
         if len(inchars)>0:
             c1 = inchars[0].lower()
             if c1 == 's':
                 request_data_descriptions(streaming_client)
                 time.sleep(1)
             elif c1 == 'e':
-                tmpCommands=["TimelinePtop",
-                            "SetPlaybackStartFrame,0",
-                            "SetPlaybackStopFrame,1000000",
-                            "SetPlaybackLooping,0",
-                            "SetPlaybackCurrentFrame,0"]
+                recording = False
+                tmpCommands=["StopRecording"]
                 for sz_command in tmpCommands:
                     return_code = streaming_client.send_command(sz_command)
                     print("Command: %s - return_code: %d"% (sz_command, return_code) )
             elif c1 == 'b':
-                mpCommands=["TimelinePlay",
-                            "TimelineStop",
-                            "SetPlaybackStartFrame,0",
-                            "SetPlaybackStopFrame,1000000",
-                            "SetPlaybackLooping,0",
-                            "SetPlaybackCurrentFrame,0",
-                            "TimelineStop",
-                            "TimelinePlay"]
+                file_setup()
+                recording = True
+                tmpCommands=["StartRecording"]
                 for sz_command in tmpCommands:
                     return_code = streaming_client.send_command(sz_command)
                     print("Command: %s - return_code: %d"% (sz_command, return_code) )
@@ -143,7 +141,8 @@ if __name__ == "__main__":
                     streaming_client.set_print_level(1)
                 print("Changed verbosity")
             elif c1 == 'q':
-                sz_command="TimelineStop"
+                cam.release()
+                sz_command="StopRecording"
                 return_code = streaming_client.send_command(sz_command)
                 time.sleep(1)
                 is_looping = False
