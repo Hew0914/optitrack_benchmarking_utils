@@ -1,7 +1,7 @@
 import cv2
 import sys
 import time
-from NatNetClient import NatNetClient
+from third_party.NatNet.NatNetClient import NatNetClient
 import csv
 
 cam = cv2.VideoCapture(0)
