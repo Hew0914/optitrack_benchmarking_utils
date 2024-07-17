@@ -1,7 +1,7 @@
 import cv2
 import sys
 import time
-from NatNetClient import NatNetClient
+from third_party.NatNet.NatNetClient import NatNetClient
 import csv
 
 cam = cv2.VideoCapture(0)
@@ -12,7 +12,7 @@ recording = False
 def receive_new_frame(data_dict):
     order_list=[ "frameNumber", "markerSetCount", "unlabeledMarkersCount", "rigidBodyCount", "skeletonCount",
                 "labeledMarkerCount", "timecode", "timecodeSub", "timestamp", "isRecording", "trackedModelsChanged" ]
-    if data_dict["frame_number"] % 8 == 4:
+    if recording and data_dict["frame_number"] % 8 == 4:
         success, image = cam.read()
         if success:
             cv2.imwrite("frames/frame_%d.png" % data_dict["frame_number"], image)
@@ -65,7 +65,7 @@ def my_parse_args(arg_list, args_dict):
     return args_dict
 
 def file_setup():
-    with open("optitrack_data.csv", 'w') as f:
+    with open(f'optitrack_data.csv', 'w') as f:
         f_writer = csv.writer(f)
         f_writer.writerow(["Pos X", "Pos Y", "Pos Z", "Rot X", "Rot Y", "Rot Z", "Rot W"])
         f.close()
@@ -110,6 +110,7 @@ if __name__ == "__main__":
     print_configuration(streaming_client)
     print("\n")
     initial_message()
+    streaming_client.set_print_level(0)
     sz_command = "SetPlaybackStartFrame=0"
     return_code = streaming_client.send_command(sz_command)
     print("Command: %s - return_code: %d"% (sz_command, return_code) )
