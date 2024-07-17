@@ -1,0 +1,72 @@
+import os
+from pathlib import Path
+import sys
+import h5py
+from collections import defaultdict
+from third_party.Hierarchical_Localization.hloc import extract_features, extractors, matchers, pairs_from_retrieval, match_features, visualization
+from third_party.Hierarchical_Localization.hloc.extract_features import ImageDataset
+from third_party.Hierarchical_Localization.hloc.localize_sfm import QueryLocalizer, pose_from_cluster
+from third_party.Hierarchical_Localization.hloc.fast_localize import localize
+from third_party.Hierarchical_Localization.hloc.utils import viz_3d, io
+from third_party.Hierarchical_Localization.hloc.utils.base_model import dynamic_load
+from third_party.Hierarchical_Localization.hloc.utils.io import list_h5_names
+from third_party.Hierarchical_Localization.hloc.utils.parsers import names_to_pair
+import pycolmap
+import numpy as np
+from scipy.spatial.transform import Rotation
+import torch
+
+LOCAL_FEATURE_EXTRACTOR = 'superpoint_aachen'
+GLOBAL_DESCRIPTOR_EXTRACTOR = 'netvlad'
+MATCHER = 'superglue'
+
+img_dir = 'frames' # frames
+dataset_name = 'Arena' # Arena
+dataset_path = f'/home/sagar/Repos/spatial-server/data/map_data/{dataset_name}/hloc_data'
+
+if __name__ == "__main__":
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # Load local feature extractor model (Superpoint)
+    local_feature_conf = extract_features.confs[LOCAL_FEATURE_EXTRACTOR]
+    Model = dynamic_load(extractors, local_feature_conf['model']['name'])
+    local_features_extractor_model = Model(local_feature_conf['model']).eval().to(device)
+
+    # Load global descriptor model (Netvlad)
+    global_descriptor_conf = extract_features.confs[GLOBAL_DESCRIPTOR_EXTRACTOR]
+    Model = dynamic_load(extractors, global_descriptor_conf['model']['name'])
+    global_descriptor_model = Model(global_descriptor_conf['model']).eval().to(device)
+
+    # Load matcher model (SuperGlue)
+    match_features_conf = match_features.confs[MATCHER]
+    Model = dynamic_load(matchers, match_features_conf['model']['name'])
+    matcher_model = Model(match_features_conf['model']).eval().to(device)
+    
+    # Define database paths
+    dataset = Path(dataset_path)
+    db_local_features_path = (dataset / local_feature_conf['output']).with_suffix('.h5')
+
+    db_reconstruction = dataset / 'scaled_sfm_reconstruction'
+    if not db_reconstruction.exists():
+        db_reconstruction = dataset / 'sfm_reconstruction'
+
+    # Load global descriptors from the database
+    db_global_descriptors_path = (dataset / global_descriptor_conf['output']).with_suffix('.h5')
+    db_image_names = np.array(list_h5_names(db_global_descriptors_path))
+    db_global_descriptors = pairs_from_retrieval.get_descriptors(db_image_names, db_global_descriptors_path)
+    db_global_descriptors = db_global_descriptors.to(device)
+
+    for frame in os.listdir(img_dir):
+        ret_new, log_new = localize(
+            query_processing_data_dir = os.fsencode(img_dir), 
+            query_image_name = frame, 
+            device = device, 
+            local_feature_conf = local_feature_conf, 
+            local_features_extractor_model = local_features_extractor_model, 
+            global_descriptor_conf = global_descriptor_conf, 
+            global_descriptor_model = global_descriptor_model, 
+            db_global_descriptors = db_global_descriptors, 
+            db_image_names = db_image_names,
+            db_local_features_path = db_local_features_path,
+            matcher_model = matcher_model,
+            db_reconstruction = db_reconstruction
+        )
