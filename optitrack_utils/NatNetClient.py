@@ -20,8 +20,8 @@ import struct
 from threading import Thread
 import copy
 import time
-import DataDescriptions
-import MoCapData
+from . import DataDescriptions
+from . import MoCapData
 
 def trace( *args ):
     # uncomment the one you want to use
@@ -1630,11 +1630,6 @@ class NatNetClient:
 
             offset_tmp, mocap_data = self.__unpack_mocap_data( data[offset:], packet_size, major, minor )
             offset += offset_tmp
-            print("MoCap Frame: %d\n"%(mocap_data.prefix_data.frame_number))
-            # get a string version of the data for output
-            mocap_data_str=mocap_data.get_as_string()
-            if print_level >= 1:
-                print("%s\n"%mocap_data_str)
 
         elif message_id == self.NAT_MODELDEF :
             trace( "Message ID  : %3.1d NAT_MODELDEF"% message_id )
@@ -1757,7 +1752,7 @@ class NatNetClient:
             nTries -= 1
             ret_val = self.send_request( self.command_socket, self.NAT_REQUEST, command_str,  (self.server_ip_address, self.command_port) )
             if (ret_val != -1):
-                break;
+                break
         return ret_val
 
         #return self.send_request(self.data_socket,    self.NAT_REQUEST, command_str,  (self.server_ip_address, self.command_port) )
@@ -1836,8 +1831,11 @@ class NatNetClient:
         # closing sockets causes blocking recvfrom to throw
         # an exception and break the loop
         self.command_socket.close()
+        print("Point 1")
         self.data_socket.close()
+        print("Point 2")
         # attempt to join the threads back.
         self.command_thread.join()
+        print("Point 3")
         self.data_thread.join()
-
+        print("Point 4")

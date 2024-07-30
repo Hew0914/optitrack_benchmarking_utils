@@ -1,9 +1,6 @@
 import csv
 import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pathlib import Path
-import h5py
 from hloc.hloc import extract_features, extractors, matchers, pairs_from_retrieval, match_features
 from hloc.hloc.fast_localize import localize
 from hloc.hloc.utils.base_model import dynamic_load
@@ -11,31 +8,31 @@ from hloc.hloc.utils.io import list_h5_names
 import numpy as np
 import torch
 import re
+from enum import Enum
+
+# Variables for method of localization
+LOCAL_FEATURE_EXTRACTOR = 'superpoint_aachen'
+GLOBAL_DESCRIPTOR_EXTRACTOR = 'netvlad'
+MATCHER = 'superglue'
+
+FILE_OPTIONS = Enum('FILE_OPTIONS', ['TRAJ', 'CSV'])
+
+# Other variables
+TAKE_NAME = input('Take name: ') # Name of folder holding recorded frames
+MAP_NAME = 'Arena' # Name of folder holding map information
+FRAMERATE = 240.0 # Framerate of camera; keep as float
+FILETYPE = 1 # Type of file to save localization data to
 
 def get_frame_num_from_path(path):
     frame_name = os.path.basename(path)
     return int(re.sub('[^0-9]', '', frame_name))
 
 if __name__ == "__main__":
-
-    LOCAL_FEATURE_EXTRACTOR = 'superpoint_aachen'
-    GLOBAL_DESCRIPTOR_EXTRACTOR = 'netvlad'
-    MATCHER = 'superglue'
-
-    # IF ENTERING FRAMES NOT RECORDED USING "record.py", FRAMES MUST BE
-    # RENAMED IN "frame_X,png" FORMAT AS TIMESTAMPS ARE ADDED BY FRAME NUMBER
-
-    # Variables
-    take_name = 'july_12' # Name of folder holding recorded frames
-    dataset_name = 'Arena' # Name of folder holding map information
-    framerate = 240.0 # Framerate of camera; keep as float
-    time_offset = 0 # Difference between time 0 and frame 0
-
-    img_dir = f'frames/{take_name}'
-    dataset_path = f'maps/{dataset_name}/hloc_data'
+    frame_offset = int(input("Number of first recorded frame: "))
+    img_dir = f'{TAKE_NAME}/frames'
+    dataset_path = f'maps/{MAP_NAME}/hloc_data'
 
     # Load global memory - Common data across all maps
-
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # Load local feature extractor model (Superpoint)
@@ -73,19 +70,15 @@ if __name__ == "__main__":
     random_sample = np.random.choice(all_image_paths, 20)
     query_processing_data_dir = Path(img_dir)
     not_localized = []
+    num_localized = 0
+    os.makedirs(f'{TAKE_NAME}/localization', exist_ok=True)
 
-    if not os.path.exists('localizations'):
-        os.mkdir('localizations')
-    if not os.path.exists(f'localizations/{take_name}'):
-        os.mkdir(f'localizations/{take_name}')
-
-    with open(f'localizations/{take_name}/localization_data.csv', 'w', newline='') as f:
-        fw = csv.writer(f)
-        for path in all_image_paths[:20]:
-            time = (get_frame_num_from_path(path) + time_offset) / framerate
+    with open(f'{TAKE_NAME}/localization/localization_data.txt', 'w', newline='') as f:
+        for path in all_image_paths:
+            time = (get_frame_num_from_path(path) - frame_offset) / FRAMERATE
             try:
                 img_name = os.path.basename(path)
-                ret_new, log_new = localize(
+                ret, log = localize(
                     query_processing_data_dir = query_processing_data_dir, 
                     query_image_name = img_name, 
                     device = device, 
@@ -99,14 +92,29 @@ if __name__ == "__main__":
                     matcher_model = matcher_model,
                     db_reconstruction = db_reconstruction
                 )
-                tvec = ret_new['tvec']
-                qvec = ret_new['qvec']
+                tvec = ret['tvec']
+                qvec = ret['qvec']
                 out = [time, tvec[0], tvec[1], tvec[2], qvec[0], qvec[1], qvec[2], qvec[3]]
-                fw.writerow(out)
+                outstring = ' '.join(map(str, out))
+                f.write(f'{outstring}\n')
+                num_localized += 1
             except:
                 not_localized.append(get_frame_num_from_path(path))
         f.close()
-    with open(f'localizations/{take_name}/not_localized.txt', 'w') as f:
+        print(num_localized)
+    with open(f'{TAKE_NAME}/optitrack_untimed.txt') as untimed, open(f'{TAKE_NAME}/optitrack_timed.txt', 'w', newline='') as timed:
+        num_read = 0
+        while (l := untimed.readline()) != '' and (num_read < num_localized):
+            row = l.split(' ')
+            time = (int(row[0]) - frame_offset) / FRAMERATE
+            if int(row[0]) not in not_localized and time >= 0.0:
+                new = [time, row[1], row[2], row[3], row[4], row[5], row[6], row[7]]
+                timed.write(' '.join(map(str, new)))
+                num_read += 1
+        untimed.close()
+        timed.close()
+        print(num_read)
+    with open(f'{TAKE_NAME}/localization/frames_not_localized.txt', 'w') as f:
         f.write(str(not_localized))
         f.close()
-    print("Done!")
+num_read < num_localized

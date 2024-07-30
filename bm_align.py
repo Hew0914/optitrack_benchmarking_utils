@@ -1,43 +1,37 @@
-from trajectopy_core.alignment.estimation import estimate_alignment
-from trajectopy_core.settings.matching import MatchingSettings, MatchingMethod
-from trajectopy_core.settings.alignment import AlignmentSettings
-from trajectopy_core.settings.processing import ProcessingSettings
-from trajectopy_core.trajectory import Trajectory
-from trajectopy_core.evaluation.metrics import ate
-from rich.console import Console
-from rich.table import Table
+import copy
+import os
+import logging
+import sys
+import evo.core.lie_algebra as lie
+from evo.core import trajectory
+from evo.tools import plot, file_interface, log
+import numpy as np
 import matplotlib.pyplot as plt
-from trajectopy_core.plotting.mpl.trajectory_plot import plot_trajectories
-def dict_to_table(data: dict):
-    """Converts a dictionary to a rich table."""
-    table_data = Table(title="ATE Results")
-    table_data.add_column("Property")
-    table_data.add_column("Value")
-    for key, value in data.items():
-        table_data.add_row(key, str(value))
-    return table_data
+
+
 
 if __name__ == "__main__":
-    console = Console()
-    opti = Trajectory.from_file("../hloc/optitrack_data.traj")
-    local = Trajectory.from_file("../hloc/localization_data.traj")
-    match = MatchingSettings()
-    match.method = MatchingMethod.NEAREST_TEMPORAL
-    align = AlignmentSettings()
-    align.preprocessing.time_start = 20.0
-    align.preprocessing.time_end = 21.0
-    align.estimation_settings.all()
-
-    alignment = estimate_alignment(
-        traj_from = local,
-        traj_to = opti,
-        alignment_settings=align,
-        matching_settings=match)
-    
-    traj = local.apply_alignment(alignment, inplace=False)
-    traj.name = 'traj'
-    plot_trajectories([local, opti])
+    take_name = input('Insert name of take: ')
+    logger = logging.getLogger('evo')
+    log.configure_logging(verbose=True)
+    traj_ref = file_interface.read_tum_trajectory_file(f'{take_name}/optitrack_timed.txt')
+    traj_est = file_interface.read_tum_trajectory_file(f'{take_name}/localization/localization_data.txt')
+    traj_est.transform(lie.se3(np.eye(3), np.array([0, 0, 0])))
+    traj_est.scale(0.5)
+    logger.info("\nUmeyama alignment with scaling")
+    traj_est_aligned_scaled = copy.deepcopy(traj_est)
+    traj_est_aligned_scaled.align(traj_ref, correct_scale=True)
+    fig = plt.figure(figsize=(8, 8))
+    plot_mode = plot.PlotMode.xyz
+    ax = plot.prepare_axis(fig, plot_mode, subplot_arg=221)
+    plot.traj(ax, plot_mode, traj_ref, '--', 'gray')
+    plot.traj(ax, plot_mode, traj_est, '-', 'blue')
+    fig.axes.append(ax)
+    plt.title('not aligned')
+    ax = plot.prepare_axis(fig, plot_mode, subplot_arg=223)
+    plot.traj(ax, plot_mode, traj_ref, '--', 'gray')
+    plot.traj(ax, plot_mode, traj_est_aligned_scaled, '-', 'blue')
+    fig.axes.append(ax)
+    plt.title('$\mathrm{Sim}(3)$ alignment')
+    fig.tight_layout()
     plt.show()
-    # settings = ProcessingSettings()
-    # ate_result = ate(trajectory_gt=opti, trajectory_est=traj, settings=settings)
-    # console.print(dict_to_table(ate_result.property_dict))
