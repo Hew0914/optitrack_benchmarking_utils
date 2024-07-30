@@ -15,15 +15,12 @@ from optitrack_utils.NatNetClient import NatNetClient
 # Frames are saved to folder
 # To run the client, simply run on command line
 
-FILE_OPTIONS = ['TRAJ', 'CSV', 'TXT']
-
 # Variables
 
 RECEIVING_CLIENT_ADDRESS = '127.0.0.1'
 OPTITRACK_SERVER_ADDRESS = '192.168.2.109'
 MULTICAST = True
 OPENCV_CAMERA_SOURCE = 0
-FILETYPE = 2
 
 # The Optitrack client saves both the camera and 
 class OptiTrackClient:
@@ -34,7 +31,6 @@ class OptiTrackClient:
         self.rigid_body_positions = []
         self.lock = threading.Lock()
         self.natnet = None
-        self.filetype = FILE_OPTIONS[FILETYPE]
         self.recording_name = input("Enter the recording name: ")
         os.makedirs(self.recording_name, exist_ok=True)
 
@@ -85,23 +81,6 @@ class OptiTrackClient:
             if self.is_recording:
                 self.record_position(rigid_body_data)
 
-    def write_csv(self):
-        with open(Path(self.recording_name) / 'optitrack_untimed.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            for entry in self.rigid_body_positions:
-                row = [entry['frame_number']] + list(entry['data'])
-                writer.writerow(row)
-            f.close()
-    
-    def write_traj(self):
-        with open(Path(self.recording_name) / 'optitrack_untimed.traj', 'w', newline='') as f:
-            f.write('#name optitrack\n')
-            for entry in self.rigid_body_positions:
-                row = [entry['frame_number']] + list(entry['data'])
-                row_string = re.sub(r'[\[\]]', '', str(row))
-                f.write(f'{row_string}\n')
-            f.close()
-
     def write_txt(self):
         with open(Path(self.recording_name) / 'optitrack_untimed.txt', 'w', newline='') as f:
             for entry in self.rigid_body_positions:
@@ -136,12 +115,7 @@ class OptiTrackClient:
     # Closes the NatNet client and saves data based on file option
     def shutdown(self):
         with self.lock:
-            if self.filetype == FILE_OPTIONS[0]:
-                self.write_csv()
-            elif self.filetype == FILE_OPTIONS[1]:
-                self.write_traj()
-            elif self.filetype == FILE_OPTIONS[2]:
-                self.write_txt()
+            self.write_txt()
             self.natnet.shutdown()
             print("shut off")
 
