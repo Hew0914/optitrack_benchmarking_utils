@@ -10,8 +10,8 @@ if __name__ == '__main__':
     take_name = input('Take name: ')
     start_frame = int(input('First frame number: '))
     query_processing_data_dir = Path(take_name) / 'frames'
-    dataset_name = 'Arena'
-    dataset_path = f'/home/hwillia2/Desktop/spatial/optitrack_benchmarking_utils/maps/{dataset_name}/hloc_data'
+    dataset_name = '2300Area'
+    dataset_path = f'/home/hwillia2/Desktop/spatial/optitrack_benchmarking_utils/maps/{dataset_name}/colmap_known_poses/sparse/0'
     dataset = Path(dataset_path)
     db_reconstruction = dataset / 'scaled_sfm_reconstruction'
     if not db_reconstruction.exists():
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     reconstruction = pycolmap.Reconstruction(db_reconstruction.__str__())
     # Figure matching both trajectories
     fig1 = viz_3d.init_figure()
-    with open(f'{take_name}/localization/localization_data.txt') as l, open(f'{take_name}/optitrack_timed.txt') as o:
+    with open(f'takes/{take_name}/localization/localization_data.txt') as l, open(f'takes/{take_name}/optitrack_timed.txt') as o:
         countl = 0
         counto = 0
         while (line := l.readline()) != '':
