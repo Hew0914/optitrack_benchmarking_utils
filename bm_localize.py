@@ -14,7 +14,6 @@ from evo.tools import plot, file_interface, log
 import torch
 import logging
 import re
-from enum import Enum
 
 def get_frame_num_from_path(path):
     frame_name = os.path.basename(path)
@@ -128,7 +127,7 @@ class LocalizationClient:
         logger.info("\nUmeyama alignment with scaling")
         traj_est_aligned_scaled = copy.deepcopy(traj_est)
         traj_est_aligned_scaled.align(traj_ref, correct_scale=True)
-        file_interface.write_tum_trajectory_file(f'takes/{take_name}/localization/localization_aligned.txt', traj_est_aligned_scaled, confirm_overwrite=True)
+        file_interface.write_tum_trajectory_file(f'takes/{self.take_name}/localization/localization_aligned.txt', traj_est_aligned_scaled, confirm_overwrite=True)
 
 
 def main():
