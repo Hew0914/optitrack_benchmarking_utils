@@ -2,6 +2,7 @@ import cv2
 import sys
 import os
 import re
+import argparse
 import csv
 import threading
 from pynput import keyboard
@@ -24,18 +25,15 @@ OPENCV_CAMERA_SOURCE = 0
 
 # The Optitrack client saves both the camera and 
 class OptiTrackClient:
-    def __init__(self):
-        self.capture = cv2.VideoCapture(OPENCV_CAMERA_SOURCE)
+    def __init__(self, cap_number, name):
+        self.capture = cv2.VideoCapture(cap_number)
         self.is_recording = False
         self.frame_number = None
         self.rigid_body_positions = []
         self.lock = threading.Lock()
         self.natnet = None
-        self.recording_name = input("Enter the recording name: ")
-        os.makedirs(self.recording_name, exist_ok=True)
-
-    def setup(self):
-        pass
+        self.recording_name = name
+        os.makedirs(f'takes/{self.recording_name}', exist_ok=True)
 
     def start_recording(self):
         return_code = self.natnet.send_command('SetPlaybackStartFrame=0')
@@ -53,7 +51,7 @@ class OptiTrackClient:
         ret, frame = self.capture.read()
         if ret:
             photo_filename = f'photo_{self.frame_number}.png'
-            cv2.imwrite(Path(f'{self.recording_name}/frames') / photo_filename, frame)
+            cv2.imwrite(Path(f'takes/{self.recording_name}/frames') / photo_filename, frame)
             print(f'Saved {photo_filename}')
 
     def record_position(self, rigid_body):
@@ -82,7 +80,7 @@ class OptiTrackClient:
                 self.record_position(rigid_body_data)
 
     def write_txt(self):
-        with open(Path(self.recording_name) / 'optitrack_untimed.txt', 'w', newline='') as f:
+        with open(Path(f'takes/{self.recording_name}') / 'optitrack_untimed.txt', 'w', newline='') as f:
             for entry in self.rigid_body_positions:
                 row = [entry['frame_number']] + list(entry['data'])
                 line = ' '.join(map(str, row))
@@ -100,7 +98,7 @@ class OptiTrackClient:
         client.set_use_multicast(MULTICAST)
 
         # Make directories to save data and check camera function
-        os.makedirs(f'{self.recording_name}/frames/', exist_ok=True)
+        os.makedirs(f'takes/{self.recording_name}/frames/', exist_ok=True)
         self.natnet.set_print_level(0)
         if not self.capture.isOpened():
             print("Could not open webcam.")
@@ -134,7 +132,17 @@ class OptiTrackClient:
         with keyboard.Listener(on_press=self.on_press) as listener:
             listener.join()
 
-if __name__ == '__main__':
+def main():
+    parser = argparse.ArgumentParser(description='''\
+                                    This applet records optitrack data concurrently with camera frames.
+                                    
+                                    Frames and data are saved to folder of same name as provided recording.''')
+    parser.add_argument('camera', type=str, help='Camera Source Number')
+    parser.add_argument('name', type=str, help='Name of recording')
+    args = parser.parse_args()
     client = OptiTrackClient()
     threading.Thread(target=client.listen_for_keypress).start()
-    client.run()
+    client.run(args.camera, args.name)
+
+if __name__ == '__main__':
+    main()
