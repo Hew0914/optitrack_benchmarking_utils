@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     take_name = input('Insert name of take: ')
     logger = logging.getLogger('evo')
-    logging.configure_logging(verbose=True)
+    log.configure_logging(verbose=True)
     traj_ref = file_interface.read_tum_trajectory_file(f'takes/{take_name}/optitrack_timed.txt')
     traj_est = file_interface.read_tum_trajectory_file(f'takes/{take_name}/localization/localization_data.txt')
     traj_est.transform(lie.se3(np.eye(3), np.array([0, 0, 0])))

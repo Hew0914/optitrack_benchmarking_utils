@@ -101,14 +101,14 @@ class OptiTrackClient:
         os.makedirs(f'takes/{self.recording_name}/frames/', exist_ok=True)
         self.natnet.set_print_level(0)
         if not self.capture.isOpened():
-            print("Could not open webcam.")
-            sys.exit(1)
+            print("Could not open camera.")
+            os._exit(1)
         
         # Start NatNet client
         is_running = client.run()
         if not is_running:
             print('Failed to start running')
-            sys.exit(1)
+            os._exit(1)
 
     # Closes the NatNet client and saves data based on file option
     def shutdown(self):
@@ -140,9 +140,9 @@ def main():
     parser.add_argument('camera', type=str, help='Camera Source Number')
     parser.add_argument('name', type=str, help='Name of recording')
     args = parser.parse_args()
-    client = OptiTrackClient()
+    client = OptiTrackClient(args.camera, args.name)
     threading.Thread(target=client.listen_for_keypress).start()
-    client.run(args.camera, args.name)
+    client.run()
 
 if __name__ == '__main__':
     main()

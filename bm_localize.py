@@ -132,10 +132,7 @@ class LocalizationClient:
 
 def main():
     parser = argparse.ArgumentParser(description='''\
-                                    This applet localizes all frames held in the given recording\'s directory in order along with timestamps.
-                                    Additionally, the previously recorded gt data is also trimmed and timestamped to match the successfully localized frames.
-                                    The gt and localization data are then aligned.
-                                    Please use a map created using the openvps map creation tool.''')
+                                    This applet has two functions, depending on ''')
     parser.add_argument('recording', type=str, help='Name of recording')
     parser.add_argument('map', type=str, help='Name of map')
     parser.add_argument('-f', type=float, metavar='FRAMERATE', default=240.0, help='Only for localization. Framerate of gt recording. Default 240Hz')
